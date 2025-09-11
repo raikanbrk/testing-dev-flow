@@ -1,0 +1,24 @@
+name: ci
+
+on:
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  laravel-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Build the Docker image for testing
+        run: docker build -t meu-app/laravel:test .
+
+      - name: Run Tests with Docker Compose
+        run: |
+          docker compose -f docker-compose.ci.yml up -d
+
+          docker compose -f docker-compose.ci.yml exec -T app php -r "file_exists('.env') || copy('.env.example', '.env');"
+          docker compose -f docker-compose.ci.yml exec -T app php artisan key:generate
+          docker compose -f docker-compose.ci.yml exec -T app php artisan migrate --force --seed
+          docker compose -f docker-compose.ci.yml exec -T app ./vendor/bin/phpunit
