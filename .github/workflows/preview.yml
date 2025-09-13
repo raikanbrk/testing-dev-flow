@@ -1,0 +1,104 @@
+name: Ephemeral Preview Environment
+
+on:
+  pull_request:
+    types: [opened, synchronize, closed]
+
+jobs:
+  build_and_push:
+    runs-on: ubuntu-latest
+    if: github.event.action != 'closed'
+    outputs:
+      image_tag: ${{ steps.vars.outputs.sha_short }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set output slug
+        id: vars
+        run: echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and push Docker image
+        run: |
+          IMAGE_TAG=${{ steps.vars.outputs.sha_short }}
+          docker build --target php -t devc4rlos/testing-dev-flow:${IMAGE_TAG} .
+          docker push devc4rlos/testing-dev-flow:${IMAGE_TAG}
+
+  deploy_preview:
+    needs: build_and_push
+    if: github.event.action != 'closed'
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    steps:
+      - name: Deploy to VPS
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script: |
+            PR_NUMBER=${{ github.event.pull_request.number }}
+            IMAGE_TAG=${{ needs.build_and_push.outputs.image_tag }}
+            PROJECT_DIR="/var/www/previews-prs/pr-${PR_NUMBER}"
+
+            export HOSTNAME="pr-${PR_NUMBER}.preview.carlosalexandre.com.br"
+            export ROUTER_NAME="pr-${PR_NUMBER}"
+            export SERVICE_NAME="pr-${PR_NUMBER}"
+            export IMAGE_TAG
+
+            if [ -d "$PROJECT_DIR/.git" ]; then
+              cd ${PROJECT_DIR}
+              git pull
+
+              docker compose -p pr-${PR_NUMBER} down -v
+            else
+              mkdir -p ${PROJECT_DIR}
+              cd ${PROJECT_DIR}
+              git clone git@github.com:${{ github.repository }}.git .
+            fi
+            git checkout ${{ github.event.pull_request.head.sha }}
+
+            cp ~/.env .env
+
+            docker compose -f docker-compose.preview.yml -p pr-${PR_NUMBER} up -d
+
+            sleep 5
+
+            docker compose -p pr-${PR_NUMBER} exec -T app php artisan migrate --force
+
+      - name: Post Preview URL to PR
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          header: preview-url
+          message: |
+            ✅ **Ambiente de Preview pronto!**
+            Acesse em: https://pr-${{ github.event.pull_request.number }}.preview.carlosalexandre.com.br
+
+            > Imagem utilizada: `devc4rlos/testing-dev-flow:${{ needs.build_and_push.outputs.image_tag }}`
+
+  destroy_preview:
+    if: github.event.action == 'closed'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Destroy Environment on VPS
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script: |
+            PR_NUMBER=${{ github.event.pull_request.number }}
+            PROJECT_DIR="/var/www/previews-prs/pr-${PR_NUMBER}"
+
+            cd ${PROJECT_DIR}
+            docker compose -p pr-${PR_NUMBER} down -v
+
+            cd ..
+            rm -rf ${PROJECT_DIR}
