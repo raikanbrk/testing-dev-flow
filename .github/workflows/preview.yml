@@ -36,6 +36,9 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       pull-requests: write
+    environment:
+      name: preview-deployment
+      url: ${{ steps.deploy.outputs.preview_url }}
     steps:
       - name: Deploy to VPS
         uses: appleboy/ssh-action@master
@@ -68,7 +71,6 @@ jobs:
             git checkout ${{ github.event.pull_request.head.sha }}
 
             docker compose -f docker-compose.preview.yml -p pr-${PR_NUMBER} up -d
-
             docker compose -p pr-${PR_NUMBER} exec -T app php artisan migrate --force
 
       - name: Post Preview URL to PR
