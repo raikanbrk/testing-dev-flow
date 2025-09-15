@@ -68,7 +68,9 @@ jobs:
             if [ ! -d "$PROJECT_DIR/.git" ]; then
               git clone git@github.com:${{ github.repository }}.git ${PROJECT_DIR}
               cd ${PROJECT_DIR}
-              cp ~/.env .env
+
+              ln -s ~/.env ./.env
+              ln -s ~/.htpasswd ./docker/nginx/.htpasswd
             else
               cd ${PROJECT_DIR}
               docker compose -p pr-${PR_NUMBER} down -v
