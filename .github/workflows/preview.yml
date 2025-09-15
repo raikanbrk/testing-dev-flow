@@ -2,7 +2,7 @@ name: Ephemeral Preview Environment
 
 on:
   pull_request:
-    types: [labeled, closed]
+    types: [labeled, closed, synchronize]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
@@ -10,7 +10,9 @@ concurrency:
 
 jobs:
   build_and_push:
-    if: github.event.action == 'labeled' && github.event.label.name == 'deploy-preview'
+    if: |
+      (github.event.action == 'labeled' && github.event.label.name == 'deploy-preview') ||
+      (github.event.action == 'synchronize' && contains(github.event.pull_request.labels.*.name, 'deploy-preview'))
     runs-on: ubuntu-latest
     outputs:
       image_tag: ${{ steps.vars.outputs.sha_short }}
@@ -38,13 +40,12 @@ jobs:
 
   deploy_preview:
     needs: build_and_push
-    if: github.event.action == 'labeled' && github.event.label.name == 'deploy-preview'
+    if: |
+      (github.event.action == 'labeled' && github.event.label.name == 'deploy-preview') ||
+      (github.event.action == 'synchronize' && contains(github.event.pull_request.labels.*.name, 'deploy-preview'))
     runs-on: ubuntu-latest
     permissions:
       pull-requests: write
-    environment:
-      name: preview-deployment
-      url: https://pr-${{ github.event.pull_request.number }}.preview.carlosalexandre.com.br
     steps:
       - name: Deploy to VPS
         uses: appleboy/ssh-action@master
@@ -77,6 +78,7 @@ jobs:
             git checkout ${{ github.event.pull_request.head.sha }}
 
             docker compose -f docker-compose.preview.yml -p pr-${PR_NUMBER} up -d
+            sleep 5
             docker compose -p pr-${PR_NUMBER} exec -T app php artisan migrate --force
 
       - name: Post Preview URL to PR
