@@ -16,9 +16,12 @@ jobs:
 
       - name: Run Tests with Docker Compose
         run: |
-          docker compose -f docker-compose.ci.yml up -d
+          DOCKER_COMPOSE="docker compose -f docker-compose.ci.yml --env-file .env.ci"
+          $DOCKER_COMPOSE up -d
 
-          docker compose -f docker-compose.ci.yml exec -T app php -r "file_exists('.env') || copy('.env.example', '.env');"
-          docker compose -f docker-compose.ci.yml exec -T app php artisan key:generate
-          docker compose -f docker-compose.ci.yml exec -T app php artisan migrate --force --seed
-          docker compose -f docker-compose.ci.yml exec -T app ./vendor/bin/phpunit
+          sleep 5
+
+          $DOCKER_COMPOSE exec -T app cp .env.ci .env
+          $DOCKER_COMPOSE exec -T app php artisan key:generate
+          $DOCKER_COMPOSE exec -T app php artisan migrate --force --seed
+          $DOCKER_COMPOSE exec -T app ./vendor/bin/phpunit
