@@ -1,12 +1,8 @@
 name: Ephemeral Preview Environment
 
 on:
-  workflow_run:
-    workflows: ["ci"]
-    types:
-      - completed
   pull_request:
-    types: [closed]
+    types: [labeled, closed]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
@@ -14,16 +10,15 @@ concurrency:
 
 jobs:
   build_and_push:
-    if: github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success'
+    if: github.event.action == 'labeled' && github.event.label.name == 'deploy-preview'
     runs-on: ubuntu-latest
     outputs:
       image_tag: ${{ steps.vars.outputs.sha_short }}
-      pr_number: ${{ github.event.workflow_run.pull_requests[0].number }}
     steps:
       - name: Checkout repository at the correct SHA
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.workflow_run.head_sha }}
+          ref: ${{ github.event.pull_request.head.sha }}
 
       - name: Set output slug
         id: vars
@@ -43,13 +38,13 @@ jobs:
 
   deploy_preview:
     needs: build_and_push
-    if: github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success'
+    if: github.event.action == 'labeled' && github.event.label.name == 'deploy-preview'
     runs-on: ubuntu-latest
     permissions:
       pull-requests: write
     environment:
       name: preview-deployment
-      url: https://pr-${{ needs.build_and_push.outputs.pr_number }}.preview.carlosalexandre.com.br
+      url: https://pr-${{ github.event.pull_request.number }}.preview.carlosalexandre.com.br
     steps:
       - name: Deploy to VPS
         uses: appleboy/ssh-action@master
@@ -59,7 +54,7 @@ jobs:
           key: ${{ secrets.VPS_SSH_KEY }}
           script: |
             set -e
-            PR_NUMBER=${{ needs.build_and_push.outputs.pr_number }}
+            PR_NUMBER=${{ github.event.pull_request.number }}
             IMAGE_TAG=${{ needs.build_and_push.outputs.image_tag }}
             PROJECT_DIR="/var/www/previews-prs/pr-${PR_NUMBER}"
             GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=no"
@@ -79,7 +74,7 @@ jobs:
             fi
 
             git fetch origin
-            git checkout ${{ github.event.workflow_run.head_sha }}
+            git checkout ${{ github.event.pull_request.head.sha }}
 
             docker compose -f docker-compose.preview.yml -p pr-${PR_NUMBER} up -d
             docker compose -p pr-${PR_NUMBER} exec -T app php artisan migrate --force
@@ -87,16 +82,16 @@ jobs:
       - name: Post Preview URL to PR
         uses: marocchino/sticky-pull-request-comment@v2
         with:
-          number: ${{ needs.build_and_push.outputs.pr_number }}
+          number: ${{ github.event.pull_request.number }}
           header: preview-url
           message: |
-            ✅ **Preview pronto!** (CI bem-sucedido)
-            Acesse em: https://pr-${{ needs.build_and_push.outputs.pr_number }}.preview.carlosalexandre.com.br
+            ✅ **Preview pronto!** (Disponibilizado manualmente)
+            Acesse em: https://pr-${{ github.event.pull_request.number }}.preview.carlosalexandre.com.br
 
             > Imagem: `devc4rlos/testing-dev-flow:${{ needs.build_and_push.outputs.image_tag }}`
 
   destroy_preview:
-    if: github.event_name == 'pull_request' && github.event.action == 'closed'
+    if: github.event.action == 'closed'
     runs-on: ubuntu-latest
     steps:
       - name: Destroy Environment on VPS
