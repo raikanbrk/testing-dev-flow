@@ -10,6 +10,7 @@ services:
       - app
     networks:
       - proxy
+      - default
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.${ROUTER_NAME}.rule=Host(`${HOSTNAME}`)"
@@ -29,7 +30,7 @@ services:
     env_file:
       - ./.env
     networks:
-      - proxy
+      - default
     healthcheck:
       test: [ "CMD-SHELL", "fpm-healthcheck" ]
       interval: 10s
@@ -49,7 +50,7 @@ services:
     volumes:
       - db-data:/var/lib/mysql
     networks:
-      - proxy
+      - default
     healthcheck:
       test: [ "CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p$$MYSQL_ROOT_PASSWORD" ]
       interval: 10s
@@ -62,5 +63,7 @@ volumes:
     driver: local
 
 networks:
+  default:
+    driver: bridge
   proxy:
     external: true
