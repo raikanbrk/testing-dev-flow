@@ -57,12 +57,12 @@ jobs:
             set -e
             PR_NUMBER=${{ github.event.pull_request.number }}
             IMAGE_TAG=${{ needs.build_and_push.outputs.image_tag }}
-            PROJECT_DIR="/var/www/previews-prs/pr-${PR_NUMBER}"
+            PROJECT_DIR="/var/www/previews-prs/testing-dev-flow/pr-${PR_NUMBER}"
             GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=no"
 
-            export HOSTNAME="pr-${PR_NUMBER}.preview.carlosalexandre.com.br"
-            export ROUTER_NAME="pr-${PR_NUMBER}"
-            export SERVICE_NAME="pr-${PR_NUMBER}"
+            export HOSTNAME="testing-dev-flow-pr-${PR_NUMBER}.preview.carlosalexandre.com.br"
+            export ROUTER_NAME="testing-dev-flow-pr-${PR_NUMBER}"
+            export SERVICE_NAME="testing-dev-flow-pr-${PR_NUMBER}"
             export IMAGE_TAG
 
             if [ ! -d "$PROJECT_DIR/.git" ]; then
@@ -73,15 +73,15 @@ jobs:
               ln -s ~/.htpasswd ./docker/nginx/.htpasswd
             else
               cd ${PROJECT_DIR}
-              docker compose -p pr-${PR_NUMBER} down -v
+              docker compose -p ${SERVICE_NAME} down -v
             fi
 
             git fetch origin
             git checkout ${{ github.event.pull_request.head.sha }}
 
-            docker compose -f docker-compose.preview.yml -p pr-${PR_NUMBER} up -d
+            docker compose -f docker-compose.preview.yml -p ${SERVICE_NAME} up -d
             sleep 5
-            docker compose -p pr-${PR_NUMBER} exec -T app php artisan migrate --force
+            docker compose -p ${SERVICE_NAME} exec -T app php artisan migrate --force
 
       - name: Post Preview URL to PR
         uses: marocchino/sticky-pull-request-comment@v2
@@ -90,7 +90,7 @@ jobs:
           header: preview-url
           message: |
             ✅ **Preview pronto!** (Disponibilizado manualmente)
-            Acesse em: https://pr-${{ github.event.pull_request.number }}.preview.carlosalexandre.com.br
+            Acesse em: https://testing-dev-flow-pr-${{ github.event.pull_request.number }}.preview.carlosalexandre.com.br
 
             > Imagem: `devc4rlos/testing-dev-flow:${{ needs.build_and_push.outputs.image_tag }}`
 
@@ -107,11 +107,12 @@ jobs:
           script: |
             set -e
             PR_NUMBER=${{ github.event.pull_request.number }}
-            PROJECT_DIR="/var/www/previews-prs/pr-${PR_NUMBER}"
+            PROJECT_DIR="/var/www/previews-prs/testing-dev-flow/pr-${PR_NUMBER}"
+            SERVICE_NAME="testing-dev-flow-pr-${PR_NUMBER}"
 
             if [ -d "$PROJECT_DIR" ]; then
               cd ${PROJECT_DIR}
-              docker compose -p pr-${PR_NUMBER} down -v
+              docker compose -p ${SERVICE_NAME} down -v
               cd ..
               rm -rf ${PROJECT_DIR}
             fi

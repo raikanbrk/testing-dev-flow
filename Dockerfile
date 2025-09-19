@@ -29,15 +29,21 @@ WORKDIR /var/www
 COPY docker/php/prod.ini /usr/local/etc/php/conf.d/99-prod.ini
 
 RUN apk add --no-cache --update \
+    freetype \
+    libjpeg-turbo \
+    libpng \
+    libzip \
+    oniguruma \
+    fcgi \
+    && apk add --no-cache --virtual .build-deps \
     $PHPIZE_DEPS \
-    libzip-dev \
-    oniguruma-dev \
-    libexif-dev \
-    libpng-dev \
     freetype-dev \
     libjpeg-turbo-dev \
+    libpng-dev \
+    libzip-dev \
+    oniguruma-dev \
     && docker-php-ext-install pdo_mysql mbstring exif pcntl bcmath zip gd \
-    && apk del $PHPIZE_DEPS
+    && apk del .build-deps
 
 COPY --from=builder /var/www /var/www
 

@@ -9,17 +9,13 @@ services:
     depends_on:
       - app
     networks:
-      default:
-        priority: 10
-      proxy:
-        priority: 20
+      - proxy
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.${ROUTER_NAME}.rule=Host(`${HOSTNAME}`)"
       - "traefik.http.routers.${ROUTER_NAME}.entrypoints=websecure"
       - "traefik.http.routers.${ROUTER_NAME}.tls.certresolver=myresolver"
       - "traefik.http.services.${SERVICE_NAME}.loadbalancer.server.port=80"
-      - "traefik.docker.network=proxy"
 
   app:
     image: devc4rlos/testing-dev-flow:${IMAGE_TAG:-latest}
@@ -33,13 +29,12 @@ services:
     env_file:
       - ./.env
     networks:
-      - default
+      - proxy
     healthcheck:
-      test: [ "CMD", "cgi-fcgi", "-bind", "-connect", "127.0.0.1:9000" ]
+      test: [ "CMD-SHELL", "fpm-healthcheck" ]
       interval: 10s
       timeout: 5s
-      retries: 3
-      start_period: 30s
+      retries: 5
 
   mysql:
     image: mysql:8.0
@@ -59,7 +54,7 @@ services:
       timeout: 10s
       retries: 5
     networks:
-      - default
+      - proxy
 
 volumes:
   app-public-data:
@@ -67,7 +62,5 @@ volumes:
     driver: local
 
 networks:
-  default:
-    driver: bridge
   proxy:
     external: true
