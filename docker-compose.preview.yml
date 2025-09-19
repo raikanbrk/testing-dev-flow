@@ -6,6 +6,7 @@ services:
       - ./docker/nginx/default-preview.conf:/etc/nginx/conf.d/default.conf:ro
       - app-public-data:/var/www/public:ro
       - ./docker/nginx/.htpasswd:/etc/nginx/auth/.htpasswd:ro
+      - storage_data:/var/www/storage:ro
     depends_on:
       - app
     networks:
@@ -30,6 +31,7 @@ services:
     volumes:
       - app-public-data:/var/www/public
       - ./.env:/var/www/.env:ro
+      - storage_data:/var/www/storage
     env_file:
       - ./.env
     networks:
@@ -63,6 +65,7 @@ services:
 
 volumes:
   app-public-data:
+  storage_data:
   db-data:
     driver: local
 
