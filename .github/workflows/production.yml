@@ -19,7 +19,7 @@ jobs:
       - name: Checkout repository at the correct SHA
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.pull_request.head.sha }}
+          ref: ${{ github.event.pull_request.merge_commit_sha }}
 
       - name: Set output slug
         id: vars
@@ -71,7 +71,7 @@ jobs:
             fi
 
             git fetch origin
-            git checkout ${{ github.event.pull_request.head.sha }}
+            git checkout ${{ github.event.pull_request.merge_commit_sha }}
 
             docker compose -f docker-compose.production.yml -p ${SERVICE_NAME} up -d
             sleep 5
