@@ -54,7 +54,7 @@
                 <li>
                     <span>{{ $arquivo->name }}</span>
                     <div>
-                        <img src="storage/{{$arquivo->path}}" alt="Imagem {{ $arquivo->name }}" style="width: 200px; height: 200px; object-fit: cover; border-radius: 100%">
+                        <img src="{{ route('files.show', ["file" => $arquivo, "private" => $private]) }}" alt="Imagem {{ $arquivo->name }}" style="width: 200px; height: 200px; object-fit: cover; border-radius: 100%">
                         <a href="{{ route('files.download', $arquivo) }}">Baixar</a>
                         <form action="{{ route('files.destroy', $arquivo) }}" method="POST" style="display:inline;">
                             @csrf

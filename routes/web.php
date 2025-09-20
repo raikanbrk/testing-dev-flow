@@ -14,3 +14,5 @@ Route::post('/files/upload', [FilesController::class, 'upload'])->name('files.up
 Route::get('/files/download/{file}', [FilesController::class, 'download'])->name('files.download');
 
 Route::delete('/files/delete/{file}', [FilesController::class, 'destroy'])->name('files.destroy');
+
+Route::get('/files/{file}', [FilesController::class, 'show'])->name('files.show');

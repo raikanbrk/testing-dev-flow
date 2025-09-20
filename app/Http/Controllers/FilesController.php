@@ -8,10 +8,11 @@ use Illuminate\Support\Facades\Storage;
 
 class FilesController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
         $arquivos = Files::all();
-        return view('files', compact('arquivos'));
+        $private = $request->get("private", false);
+        return view('files', compact('arquivos', 'private'));
     }
 
     public function upload(Request $request)
@@ -23,7 +24,7 @@ class FilesController extends Controller
         $arquivo = $request->file('file');
         $nomeOriginal = $arquivo->getClientOriginalName();
 
-        $path = $arquivo->store('uploads', 'public');
+        $path = $arquivo->store('uploads', 'private');
 
         Files::create([
             'name' => $nomeOriginal,
@@ -35,19 +36,36 @@ class FilesController extends Controller
 
     public function download(Files $file)
     {
-        if (!Storage::disk('public')->exists($file->path)) {
+        if (!Storage::disk('private')->exists($file->path)) {
             abort(404, 'Arquivo não encontrado.');
         }
 
-        return Storage::disk('public')->download($file->path, $file->name);
+        return Storage::disk('private')->download($file->path, $file->name);
     }
 
     public function destroy(Files $file)
     {
-        Storage::disk('public')->delete($file->path);
+        Storage::disk('private')->delete($file->path);
 
         $file->delete();
 
         return back()->with('success', 'Arquivo excluído com sucesso!');
+    }
+
+    public function show(Files $file, Request $request)
+    {
+        if ($request->get('private') != 1) {
+            abort(403, 'Forbidden');
+        }
+
+        if (!Storage::disk('private')->exists($file->path)) {
+            abort(404, 'Imagem não encontrada.');
+        }
+
+        $filePath = Storage::disk('private')->path($file->path);
+
+        $mimeType = Storage::disk('private')->mimeType($file->path);
+
+        return response()->file($filePath, ['Content-Type' => $mimeType]);
     }
 }

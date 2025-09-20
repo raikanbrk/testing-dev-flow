@@ -10,4 +10,9 @@ class Files extends Model
         'name',
         'path',
     ];
+
+    public function getPath(): string
+    {
+        return 'storage/' . $this->path;
+    }
 }
