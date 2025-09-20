@@ -1,0 +1,82 @@
+name: Deploy Production Environment
+
+on:
+  pull_request:
+    types: [ labeled ]
+    branches: [ main ]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  build_and_push:
+    if: |
+      (github.event.action == 'labeled' && github.event.label.name == 'deploy-production') &&
+      (github.event.pull_request.merged == true)
+    runs-on: ubuntu-latest
+    outputs:
+      image_tag: ${{ steps.vars.outputs.sha_short }}
+    steps:
+      - name: Checkout repository at the correct SHA
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Set output slug
+        id: vars
+        run: echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and push Docker image
+        run: |
+          IMAGE_TAG=${{ steps.vars.outputs.sha_short }}
+          docker build --target php -t devc4rlos/testing-dev-flow:${IMAGE_TAG} .
+          docker push devc4rlos/testing-dev-flow:${IMAGE_TAG}
+
+  deploy_preview:
+    needs: build_and_push
+    if: |
+      (github.event.action == 'labeled' && github.event.label.name == 'deploy-production') &&
+      (github.event.pull_request.merged == true)
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    steps:
+      - name: Deploy to VPS
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script: |
+            set -e
+            PR_NUMBER=${{ github.event.pull_request.number }}
+            IMAGE_TAG=${{ needs.build_and_push.outputs.image_tag }}
+            PROJECT_DIR="/var/www/testing-dev-flow"
+            GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=no"
+
+            export HOSTNAME="testing-dev-flow.carlosalexandre.com.br"
+            export ROUTER_NAME="testing-dev-flow"
+            export SERVICE_NAME="testing-dev-flow"
+            export IMAGE_TAG
+
+            if [ ! -d "$PROJECT_DIR/.git" ]; then
+              git clone git@github.com:${{ github.repository }}.git ${PROJECT_DIR}
+              cd ${PROJECT_DIR}
+            else
+              cd ${PROJECT_DIR}
+              docker compose -p ${SERVICE_NAME} down -v
+            fi
+
+            git fetch origin
+            git checkout ${{ github.event.pull_request.head.sha }}
+
+            docker compose -f docker-compose.production.yml -p ${SERVICE_NAME} up -d
+            sleep 5
+            docker compose -p ${SERVICE_NAME} exec -T app php artisan migrate --force

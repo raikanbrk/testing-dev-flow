@@ -1,0 +1,78 @@
+services:
+  nginx:
+    image: nginx:stable-alpine
+    restart: always
+    volumes:
+      - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+      - app-public-data:/var/www/public:ro
+      - storage_data:/var/www/storage:ro
+    depends_on:
+      - app
+    networks:
+      default:
+        priority: 10
+      proxy:
+        priority: 20
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.${ROUTER_NAME}.rule=Host(`${HOSTNAME}`)"
+      - "traefik.http.routers.${ROUTER_NAME}.entrypoints=websecure"
+      - "traefik.http.routers.${ROUTER_NAME}.tls.certresolver=myresolver"
+      - "traefik.http.services.${SERVICE_NAME}.loadbalancer.server.port=80"
+      - "traefik.docker.network=proxy"
+
+  app:
+    image: devc4rlos/testing-dev-flow:${IMAGE_TAG:-latest}
+    restart: always
+    depends_on:
+      mysql:
+        condition: service_healthy
+    volumes:
+      - app-public-data:/var/www/public
+      - ./.env:/var/www/.env:ro
+      - storage_data:/var/www/storage
+    env_file:
+      - ./.env
+    networks:
+      - default
+    healthcheck:
+      test: [ "CMD", "cgi-fcgi", "-bind", "-connect", "127.0.0.1:9000" ]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  mysql:
+    image: mysql:8.0
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD}
+      MYSQL_DATABASE: ${DB_DATABASE}
+      MYSQL_USER: ${DB_USERNAME}
+      MYSQL_PASSWORD: ${DB_PASSWORD}
+    env_file:
+      - ./.env
+    volumes:
+      - db-data:/var/lib/mysql
+    healthcheck:
+      test: [ "CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p$$MYSQL_ROOT_PASSWORD" ]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+    networks:
+      - default
+
+volumes:
+  app-public-data:
+  storage_data:
+    external: true
+    name: testing-dev-flow-production-storage-data
+  db-data:
+    external: true
+    name: testing-dev-flow-production-db-data
+
+networks:
+  default:
+    driver: bridge
+  proxy:
+    external: true
