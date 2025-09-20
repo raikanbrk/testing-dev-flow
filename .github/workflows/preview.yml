@@ -3,6 +3,8 @@ name: Ephemeral Preview Environment
 on:
   pull_request:
     types: [labeled, closed, synchronize]
+    branches-ignore:
+      - 'main'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
