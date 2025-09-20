@@ -3,8 +3,6 @@ name: Ephemeral Preview Environment
 on:
   pull_request:
     types: [labeled, closed, synchronize]
-    branches-ignore:
-      - 'main'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
@@ -120,20 +118,18 @@ jobs:
             fi
             docker image prune -a -f
 
-      - name: Get image tag from PR SHA
+      - name: Set output slug
         id: vars
         run: echo "sha_short=$(echo ${{ github.event.pull_request.head.sha }} | cut -c1-7)" >> $GITHUB_OUTPUT
 
-      - name: Login to Docker Hub
-        uses: docker/login-action@v3
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Install regctl
+        run: |
+          curl -L https://github.com/regclient/regclient/releases/latest/download/regctl-linux-amd64 -o /usr/local/bin/regctl
+          chmod +x /usr/local/bin/regctl
 
-      - name: Delete Docker Hub tag 🧹
-        uses: actions-hub/docker-delete-tags@v1
-        with:
-          user: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
-          repo: devc4rlos/testing-dev-flow
-          tags: ${{ steps.vars.outputs.sha_short }}
+      - name: Delete Image Tag from Docker Hub
+        run: |
+          IMAGE_TAG=${{ steps.vars.outputs.sha_short }}
+          regctl registry login docker.io -u "${{ secrets.DOCKERHUB_USERNAME }}" -p "${{ secrets.DOCKERHUB_TOKEN }}"
+          regctl tag rm docker.io/devc4rlos/testing-dev-flow:${IMAGE_TAG}
+
