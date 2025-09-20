@@ -1,8 +1,8 @@
-name: Deploy Production Environment
+name: Deploy to Production
 
 on:
   pull_request:
-    types: [ labeled ]
+    types: [ closed ]
     branches: [ main ]
 
 concurrency:
@@ -11,9 +11,7 @@ concurrency:
 
 jobs:
   build_and_push:
-    if: |
-      (github.event.action == 'labeled' && github.event.label.name == 'deploy-production') &&
-      (github.event.pull_request.merged == true)
+    if: github.event.pull_request.merged == true
     runs-on: ubuntu-latest
     outputs:
       image_tag: ${{ steps.vars.outputs.sha_short }}
@@ -40,13 +38,12 @@ jobs:
           docker push devc4rlos/testing-dev-flow:${IMAGE_TAG}
 
   deploy_preview:
+    if: github.event.pull_request.merged == true
     needs: build_and_push
-    if: |
-      (github.event.action == 'labeled' && github.event.label.name == 'deploy-production') &&
-      (github.event.pull_request.merged == true)
     runs-on: ubuntu-latest
-    permissions:
-      pull-requests: write
+    environment:
+      name: Production
+      url: https://testing-dev-flow.carlosalexandre.com.br/
     steps:
       - name: Deploy to VPS
         uses: appleboy/ssh-action@master
@@ -56,7 +53,6 @@ jobs:
           key: ${{ secrets.VPS_SSH_KEY }}
           script: |
             set -e
-            PR_NUMBER=${{ github.event.pull_request.number }}
             IMAGE_TAG=${{ needs.build_and_push.outputs.image_tag }}
             PROJECT_DIR="/var/www/testing-dev-flow"
             GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=no"
