@@ -132,4 +132,3 @@ jobs:
           IMAGE_TAG=${{ steps.vars.outputs.sha_short }}
           regctl registry login docker.io -u "${{ secrets.DOCKERHUB_USERNAME }}" -p "${{ secrets.DOCKERHUB_TOKEN }}"
           regctl tag rm docker.io/devc4rlos/testing-dev-flow:${IMAGE_TAG}
-
