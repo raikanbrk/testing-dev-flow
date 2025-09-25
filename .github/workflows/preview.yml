@@ -18,7 +18,7 @@ jobs:
       github.event_name == 'issue_comment' &&
       github.event.issue.pull_request &&
       contains(github.event.comment.body, '/preview') &&
-      contains(fromJson('["OWNER", "COLLABORATOR", "MEMBER"]'), github.author_association)
+      github.actor == github.repository_owner
     runs-on: ubuntu-latest
     permissions:
       pull-requests: write
@@ -114,7 +114,9 @@ jobs:
           echo "Evento: ${{ github.event_name }}"
           echo "É um PR? ${{ !!github.event.issue.pull_request }}"
           echo "Corpo do Comentário: '${{ github.event.comment.body }}'"
-          echo "Associação do Autor: ${{ github.author_association }}"
+          echo "Verificação autor: ${{ github.actor == github.repository_owner }}"
+          echo "Associação do Autor: ${{ github.actor }}"
+          echo "Dono do repositório: ${{ github.repository_owner }}"
 
   destroy_preview:
     name: Destroy Preview Environment
