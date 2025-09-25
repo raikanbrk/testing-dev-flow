@@ -103,6 +103,19 @@ jobs:
 
             > Imagem: `devc4rlos/testing-dev-flow:${{ steps.vars.outputs.sha_short }}`
 
+
+  debug_context:
+    name: Debug Comment Context
+    runs-on: ubuntu-latest
+    if: github.event_name == 'issue_comment'
+    steps:
+      - name: Dump GitHub context
+        run: |
+          echo "Evento: ${{ github.event_name }}"
+          echo "É um PR? ${{ !!github.event.issue.pull_request }}"
+          echo "Corpo do Comentário: '${{ github.event.comment.body }}'"
+          echo "Associação do Autor: ${{ github.author_association }}"
+
   destroy_preview:
     name: Destroy Preview Environment
     if: github.event_name == 'pull_request' && github.event.action == 'closed'
