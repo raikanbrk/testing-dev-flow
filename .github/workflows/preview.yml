@@ -11,7 +11,7 @@ concurrency:
 jobs:
   build_and_push:
     runs-on: ubuntu-latest
-    if: github.event.action != 'closed'
+    if: github.event.pull_request.head.repo.full_name == github.repository && github.event.action != 'closed'
     outputs:
       image_tag: ${{ steps.vars.outputs.sha_short }}
     steps:
@@ -39,9 +39,7 @@ jobs:
   deploy_preview:
     needs: build_and_push
     runs-on: ubuntu-latest
-    if: |
-      github.event.action != 'closed' &&
-      github.event.pull_request.head.repo.full_name == github.repository
+    if: github.event.pull_request.head.repo.full_name == github.repository && github.event.action != 'closed'
     permissions:
       pull-requests: write
     steps:
