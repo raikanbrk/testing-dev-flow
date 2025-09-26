@@ -1,0 +1,79 @@
+name: Deploy External Preview
+
+on:
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: 'Número da PR externa'
+        required: true
+      sha:
+        description: 'Commit SHA da PR externa'
+        required: true
+
+jobs:
+  deploy_external_preview:
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    steps:
+      - name: Checkout repository at given SHA
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.sha }}
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and push Docker image
+        run: |
+          IMAGE_TAG=${{ github.event.inputs.sha }}
+          docker build --target php -t devc4rlos/testing-dev-flow:${IMAGE_TAG} .
+          docker push devc4rlos/testing-dev-flow:${IMAGE_TAG}
+
+      - name: Deploy to VPS
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script: |
+            set -e
+            PR_NUMBER=${{ github.event.inputs.pr_number }}
+            IMAGE_TAG=${{ github.event.inputs.sha }}
+            PROJECT_DIR="/var/www/previews-prs/testing-dev-flow/pr-${PR_NUMBER}"
+
+            export HOSTNAME="testing-dev-flow-pr-${PR_NUMBER}.preview.carlosalexandre.com.br"
+            export ROUTER_NAME="testing-dev-flow-pr-${PR_NUMBER}"
+            export SERVICE_NAME="testing-dev-flow-pr-${PR_NUMBER}"
+            export IMAGE_TAG
+
+            if [ ! -d "$PROJECT_DIR/.git" ]; then
+              git clone git@github.com:${{ github.repository }}.git ${PROJECT_DIR}
+              cd ${PROJECT_DIR}
+              ln -s ~/.env ./.env
+              ln -s ~/.htpasswd ./docker/nginx/.htpasswd
+            else
+              cd ${PROJECT_DIR}
+              docker compose -p ${SERVICE_NAME} down -v
+            fi
+
+            git fetch origin
+            git checkout ${IMAGE_TAG}
+
+            docker compose -f docker-compose.preview.yml -p ${SERVICE_NAME} up -d
+            sleep 5
+            docker compose -p ${SERVICE_NAME} exec -T app php artisan migrate --force
+
+      - name: Post Preview URL to PR
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          number: ${{ github.event.inputs.pr_number }}
+          header: preview-url
+          message: |
+            ✅ **Preview manual pronto!**
+            Acesse em: https://testing-dev-flow-pr-${{ github.event.inputs.pr_number }}.preview.carlosalexandre.com.br
+
+            > Imagem: `devc4rlos/testing-dev-flow:${{ github.event.inputs.sha }}`

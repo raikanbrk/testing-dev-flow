@@ -2,7 +2,7 @@ name: Ephemeral Preview Environment
 
 on:
   pull_request:
-    types: [labeled, closed, synchronize]
+    types: [opened, synchronize, reopened, closed]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
@@ -10,10 +10,8 @@ concurrency:
 
 jobs:
   build_and_push:
-    if: |
-      (github.event.action == 'labeled' && github.event.label.name == 'deploy-preview') ||
-      (github.event.action == 'synchronize' && contains(github.event.pull_request.labels.*.name, 'deploy-preview'))
     runs-on: ubuntu-latest
+    if: github.event.action != 'closed'
     outputs:
       image_tag: ${{ steps.vars.outputs.sha_short }}
     steps:
@@ -40,10 +38,10 @@ jobs:
 
   deploy_preview:
     needs: build_and_push
-    if: |
-      (github.event.action == 'labeled' && github.event.label.name == 'deploy-preview') ||
-      (github.event.action == 'synchronize' && contains(github.event.pull_request.labels.*.name, 'deploy-preview'))
     runs-on: ubuntu-latest
+    if: |
+      github.event.action != 'closed' &&
+      github.event.pull_request.head.repo.full_name == github.repository
     permissions:
       pull-requests: write
     steps:
@@ -58,7 +56,6 @@ jobs:
             PR_NUMBER=${{ github.event.pull_request.number }}
             IMAGE_TAG=${{ needs.build_and_push.outputs.image_tag }}
             PROJECT_DIR="/var/www/previews-prs/testing-dev-flow/pr-${PR_NUMBER}"
-            GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=no"
 
             export HOSTNAME="testing-dev-flow-pr-${PR_NUMBER}.preview.carlosalexandre.com.br"
             export ROUTER_NAME="testing-dev-flow-pr-${PR_NUMBER}"
@@ -89,7 +86,7 @@ jobs:
           number: ${{ github.event.pull_request.number }}
           header: preview-url
           message: |
-            ✅ **Preview pronto!** (Disponibilizado manualmente)
+            ✅ **Preview pronto!**
             Acesse em: https://testing-dev-flow-pr-${{ github.event.pull_request.number }}.preview.carlosalexandre.com.br
 
             > Imagem: `devc4rlos/testing-dev-flow:${{ needs.build_and_push.outputs.image_tag }}`
@@ -110,13 +107,16 @@ jobs:
             PROJECT_DIR="/var/www/previews-prs/testing-dev-flow/pr-${PR_NUMBER}"
             SERVICE_NAME="testing-dev-flow-pr-${PR_NUMBER}"
 
+            echo "Limpando ambiente da PR #${PR_NUMBER}..."
+
             if [ -d "$PROJECT_DIR" ]; then
               cd ${PROJECT_DIR}
               docker compose -p ${SERVICE_NAME} down -v
               cd ..
               rm -rf ${PROJECT_DIR}
             fi
-            docker image prune -a -f
+
+            docker image prune -a -f || true
 
       - name: Set output slug
         id: vars
@@ -130,5 +130,6 @@ jobs:
       - name: Delete Image Tag from Docker Hub
         run: |
           IMAGE_TAG=${{ steps.vars.outputs.sha_short }}
+          echo "Removendo imagem devc4rlos/testing-dev-flow:${IMAGE_TAG}..."
           regctl registry login docker.io -u "${{ secrets.DOCKERHUB_USERNAME }}" -p "${{ secrets.DOCKERHUB_TOKEN }}"
-          regctl tag rm docker.io/devc4rlos/testing-dev-flow:${IMAGE_TAG}
+          regctl tag rm docker.io/devc4rlos/testing-dev-flow:${IMAGE_TAG} || true
