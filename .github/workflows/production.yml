@@ -1,17 +1,15 @@
 name: Deploy to Production
 
 on:
-  pull_request:
-    types: [ closed ]
+  push:
     branches: [ main ]
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
   build_and_push:
-    if: github.event.pull_request.merged == true
     runs-on: ubuntu-latest
     outputs:
       image_tag: ${{ steps.vars.outputs.sha_short }}
@@ -19,7 +17,7 @@ jobs:
       - name: Checkout repository at the correct SHA
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.pull_request.merge_commit_sha }}
+          ref: ${{ github.sha }}
 
       - name: Set output slug
         id: vars
@@ -37,8 +35,7 @@ jobs:
           docker build --target php -t devc4rlos/testing-dev-flow:${IMAGE_TAG} .
           docker push devc4rlos/testing-dev-flow:${IMAGE_TAG}
 
-  deploy_preview:
-    if: github.event.pull_request.merged == true
+  deploy_production:
     needs: build_and_push
     runs-on: ubuntu-latest
     environment:
@@ -71,7 +68,7 @@ jobs:
             fi
 
             git fetch origin
-            git checkout ${{ github.event.pull_request.merge_commit_sha }}
+            git checkout ${{ github.sha }}
 
             docker compose -f docker-compose.production.yml -p ${SERVICE_NAME} up -d
             sleep 5
