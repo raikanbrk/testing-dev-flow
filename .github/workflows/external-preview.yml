@@ -1,21 +1,36 @@
-name: Deploy External Preview
+name: Manage External Preview
 
 on:
   workflow_dispatch:
     inputs:
+      action:
+        description: 'Ação a executar'
+        required: true
+        type: choice
+        options:
+          - deploy
+          - destroy
+        default: 'deploy'
       pr_number:
         description: 'Número da PR externa'
         required: true
       sha:
-        description: 'Commit SHA da PR externa'
-        required: true
+        description: 'Commit SHA (obrigatório apenas para "deploy")'
+        required: false
 
 jobs:
-  deploy_external_preview:
+  deploy:
+    if: github.event.inputs.action == 'deploy'
     runs-on: ubuntu-latest
     permissions:
       pull-requests: write
     steps:
+      - name: Validate SHA input
+        if: github.event.inputs.sha == ''
+        run: |
+          echo "::error::O Commit SHA é obrigatório para a ação 'deploy'."
+          exit 1
+
       - name: Checkout base repository
         uses: actions/checkout@v4
 
@@ -48,11 +63,10 @@ jobs:
             COMMIT_SHA=${{ github.event.inputs.sha }}
             IMAGE_TAG_SHORT=$(echo "$COMMIT_SHA" | cut -c1-7)
             PROJECT_DIR="/var/www/previews-prs/testing-dev-flow/pr-${PR_NUMBER}"
-
+            export IMAGE_TAG=${IMAGE_TAG_SHORT}
             export HOSTNAME="testing-dev-flow-pr-${PR_NUMBER}.preview.carlosalexandre.com.br"
             export ROUTER_NAME="testing-dev-flow-pr-${PR_NUMBER}"
             export SERVICE_NAME="testing-dev-flow-pr-${PR_NUMBER}"
-            export IMAGE_TAG=${IMAGE_TAG_SHORT}
 
             if [ ! -d "$PROJECT_DIR/.git" ]; then
               git clone git@github.com:${{ github.repository }}.git ${PROJECT_DIR}
@@ -63,10 +77,8 @@ jobs:
               cd ${PROJECT_DIR}
               docker compose -p ${SERVICE_NAME} down -v
             fi
-
             git fetch origin pull/${PR_NUMBER}/head
             git checkout ${COMMIT_SHA}
-
             docker compose -f docker-compose.preview.yml -p ${SERVICE_NAME} up -d
             sleep 5
             docker compose -p ${SERVICE_NAME} exec -T app php artisan migrate --force
@@ -79,5 +91,32 @@ jobs:
           message: |
             ✅ **Preview manual pronto!**
             Acesse em: https://testing-dev-flow-pr-${{ github.event.inputs.pr_number }}.preview.carlosalexandre.com.br
-
             > Imagem: `devc4rlos/testing-dev-flow:$(echo "${{ github.event.inputs.sha }}" | cut -c1-7)`
+
+  destroy:
+    if: github.event.inputs.action == 'destroy'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Destroy Environment on VPS
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script: |
+            set -e
+            PR_NUMBER=${{ github.event.inputs.pr_number }}
+            PROJECT_DIR="/var/www/previews-prs/testing-dev-flow/pr-${PR_NUMBER}"
+            SERVICE_NAME="testing-dev-flow-pr-${PR_NUMBER}"
+
+            echo "Limpando ambiente da PR externa #${PR_NUMBER}..."
+            if [ -d "$PROJECT_DIR" ]; then
+              cd ${PROJECT_DIR}
+              docker compose -p ${SERVICE_NAME} down -v
+              cd ..
+              rm -rf ${PROJECT_DIR}
+              echo "Ambiente da PR #${PR_NUMBER} removido com sucesso."
+            else
+              echo "Diretório do ambiente para a PR #${PR_NUMBER} não encontrado. Nenhuma ação realizada."
+            fi
+            docker image prune -a -f || true
