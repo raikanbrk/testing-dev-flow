@@ -35,7 +35,7 @@ jobs:
         with:
           images: devc4rlos/testing-dev-flow
           tags: |
-            type=sha,format=short
+            type=raw,value=pr-${{ github.event.pull_request.number }}
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
@@ -129,12 +129,11 @@ jobs:
           script: |
             set -e
             PR_NUMBER=${{ github.event.pull_request.number }}
+            echo "Limpando ambiente da PR #${PR_NUMBER} na VPS..."
+
             PROJECT_DIR="/var/www/previews-prs/testing-dev-flow/pr-${PR_NUMBER}"
-            SERVICE_NAME="testing-dev-flow-pr-${PR_NUMBER}"
-
-            echo "Limpando ambiente da PR #${PR_NUMBER}..."
-
             if [ -d "$PROJECT_DIR" ]; then
+              SERVICE_NAME="testing-dev-flow-pr-${PR_NUMBER}"
               cd ${PROJECT_DIR}
               docker compose -p ${SERVICE_NAME} down -v
               cd ..
@@ -155,17 +154,9 @@ jobs:
           chmod +x /usr/local/bin/regctl
           regctl registry login docker.io -u "${{ secrets.DOCKERHUB_USERNAME }}" -p "${{ secrets.DOCKERHUB_TOKEN }}"
 
-      - name: Delete All Image Tags from Docker Hub for this PR
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Delete PR-prefixed tag from Docker Hub
         run: |
-          echo "Buscando commits para a PR #${{ github.event.pull_request.number }}..."
-
-          COMMIT_SHAS=$(gh pr view ${{ github.event.pull_request.number }} --json commits -q '.commits.[].oid')
-
-          for sha in $COMMIT_SHAS; do
-            short_sha=$(echo "$sha" | cut -c1-7)
-            IMAGE_TAG="sha-${short_sha}"
-            echo "Tentando remover a imagem devc4rlos/testing-dev-flow:${IMAGE_TAG} do Docker Hub..."
-            regctl tag rm docker.io/devc4rlos/testing-dev-flow:${IMAGE_TAG} || echo "Tag ${IMAGE_TAG} não encontrada ou já removida."
-          done
+          REPO="docker.io/devc4rlos/testing-dev-flow"
+          PR_TAG="pr-${{ github.event.pull_request.number }}"
+          echo "Removendo tag da PR: ${PR_TAG}"
+          regctl tag rm "${REPO}:${PR_TAG}" || echo "Tag ${PR_TAG} não encontrada."
