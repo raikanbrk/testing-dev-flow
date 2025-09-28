@@ -15,8 +15,8 @@ on:
         description: 'Número da PR externa'
         required: true
       sha:
-        description: 'Commit SHA (obrigatório apenas para "deploy")'
-        required: false
+        description: 'Commit SHA'
+        required: true
 
 jobs:
   deploy:
@@ -25,12 +25,6 @@ jobs:
     permissions:
       pull-requests: write
     steps:
-      - name: Validate SHA input
-        if: github.event.inputs.sha == ''
-        run: |
-          echo "::error::O Commit SHA é obrigatório para a ação 'deploy'."
-          exit 1
-
       - name: Checkout base repository
         uses: actions/checkout@v4
 
@@ -42,7 +36,7 @@ jobs:
       - name: Login to Docker Hub
         uses: docker/login-action@v3
         with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          username: ${{ secrets.DOCKOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Build and push Docker image
@@ -117,6 +111,22 @@ jobs:
               rm -rf ${PROJECT_DIR}
               echo "Ambiente da PR #${PR_NUMBER} removido com sucesso."
             else
-              echo "Diretório do ambiente para a PR #${PR_NUMBER} não encontrado. Nenhuma ação realizada."
+              echo "Diretório do ambiente para a PR #${PR_NUMBER} não encontrado."
             fi
             docker image prune -a -f || true
+
+      - name: Set output slug
+        id: vars
+        run: echo "sha_short=$(echo ${{ github.event.inputs.sha }} | cut -c1-7)" >> $GITHUB_OUTPUT
+
+      - name: Install regctl
+        run: |
+          curl -L https://github.com/regclient/regclient/releases/latest/download/regctl-linux-amd64 -o /usr/local/bin/regctl
+          chmod +x /usr/local/bin/regctl
+
+      - name: Delete Image Tag from Docker Hub
+        run: |
+          IMAGE_TAG=${{ steps.vars.outputs.sha_short }}
+          echo "Removendo imagem devc4rlos/testing-dev-flow:${IMAGE_TAG} do Docker Hub..."
+          regctl registry login docker.io -u "${{ secrets.DOCKERHUB_USERNAME }}" -p "${{ secrets.DOCKERHUB_TOKEN }}"
+          regctl tag rm docker.io/devc4rlos/testing-dev-flow:${IMAGE_TAG} || true
