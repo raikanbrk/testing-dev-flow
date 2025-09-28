@@ -126,8 +126,9 @@ jobs:
             PR_NUMBER=${{ github.event.pull_request.number }}
             PROJECT_DIR="/var/www/previews-prs/testing-dev-flow/pr-${PR_NUMBER}"
             SERVICE_NAME="testing-dev-flow-pr-${PR_NUMBER}"
+            IMAGE_TAG=$(echo ${{ github.event.pull_request.head.sha }} | cut -c1-7)
 
-            echo "Limpando ambiente da PR #${PR_NUMBER}..."
+            echo "Limpando ambiente da PR #${PR_NUMBER}... "
 
             if [ -d "$PROJECT_DIR" ]; then
               cd ${PROJECT_DIR}
@@ -136,7 +137,8 @@ jobs:
               rm -rf ${PROJECT_DIR}
             fi
 
-            docker image prune -a -f || true
+            echo "Removendo imagem devc4rlos/testing-dev-flow:${IMAGE_TAG} do servidor..."
+            docker rmi devc4rlos/testing-dev-flow:${IMAGE_TAG} || true
 
       - name: Set output slug
         id: vars
