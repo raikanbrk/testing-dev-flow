@@ -44,7 +44,9 @@ jobs:
           target: php
           push: true
           tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          labels: |
+            br.com.carlosalexandre.preview.pr=${{ github.event.pull_request.number }}
+            br.com.carlosalexandre.preview.general=true
 
   deploy_preview:
     needs: build_and_push
@@ -126,9 +128,8 @@ jobs:
             PR_NUMBER=${{ github.event.pull_request.number }}
             PROJECT_DIR="/var/www/previews-prs/testing-dev-flow/pr-${PR_NUMBER}"
             SERVICE_NAME="testing-dev-flow-pr-${PR_NUMBER}"
-            IMAGE_TAG=$(echo ${{ github.event.pull_request.head.sha }} | cut -c1-7)
 
-            echo "Limpando ambiente da PR #${PR_NUMBER}... "
+            echo "Limpando ambiente da PR #${PR_NUMBER}..."
 
             if [ -d "$PROJECT_DIR" ]; then
               cd ${PROJECT_DIR}
@@ -137,21 +138,31 @@ jobs:
               rm -rf ${PROJECT_DIR}
             fi
 
-            echo "Removendo imagem devc4rlos/testing-dev-flow:${IMAGE_TAG} do servidor..."
-            docker rmi devc4rlos/testing-dev-flow:${IMAGE_TAG} || true
+            echo "Removendo imagens do servidor para a PR #${PR_NUMBER}..."
+            IMAGES_TO_DELETE=$(docker images -q --filter "label=br.com.carlosalexandre.preview.pr=${PR_NUMBER}")
+            if [ -n "$IMAGES_TO_DELETE" ]; then
+              docker rmi $IMAGES_TO_DELETE || true
+            else
+              echo "Nenhuma imagem encontrada para a PR #${PR_NUMBER}."
+            fi
 
-      - name: Set output slug
-        id: vars
-        run: echo "sha_short=$(echo ${{ github.event.pull_request.head.sha }} | cut -c1-7)" >> $GITHUB_OUTPUT
-
-      - name: Install regctl
+      - name: Install and Login to regctl
         run: |
           curl -L https://github.com/regclient/regclient/releases/latest/download/regctl-linux-amd64 -o /usr/local/bin/regctl
           chmod +x /usr/local/bin/regctl
-
-      - name: Delete Image Tag from Docker Hub
-        run: |
-          IMAGE_TAG=${{ steps.vars.outputs.sha_short }}
-          echo "Removendo imagem devc4rlos/testing-dev-flow:${IMAGE_TAG}..."
           regctl registry login docker.io -u "${{ secrets.DOCKERHUB_USERNAME }}" -p "${{ secrets.DOCKERHUB_TOKEN }}"
-          regctl tag rm docker.io/devc4rlos/testing-dev-flow:${IMAGE_TAG} || true
+
+      - name: Delete All Image Tags from Docker Hub for this PR
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "Buscando commits para a PR #${{ github.event.pull_request.number }}..."
+
+          COMMIT_SHAS=$(gh pr view ${{ github.event.pull_request.number }} --json commits -q '.commits.[].oid')
+
+          for sha in $COMMIT_SHAS; do
+            short_sha=$(echo "$sha" | cut -c1-7)
+            IMAGE_TAG="sha-${short_sha}"
+            echo "Tentando remover a imagem devc4rlos/testing-dev-flow:${IMAGE_TAG} do Docker Hub..."
+            regctl tag rm docker.io/devc4rlos/testing-dev-flow:${IMAGE_TAG} || echo "Tag ${IMAGE_TAG} não encontrada ou já removida."
+          done
