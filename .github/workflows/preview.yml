@@ -85,7 +85,19 @@ jobs:
             git checkout ${{ github.event.pull_request.head.sha }}
 
             docker compose -f docker-compose.preview.yml -p ${SERVICE_NAME} up -d
-            sleep 5
+
+            echo "Aguardando o banco de dados ficar pronto..."
+            TIMEOUT=60
+            while ! docker compose -p ${SERVICE_NAME} exec -T mysql mysqladmin ping --silent; do
+              sleep 1
+              TIMEOUT=$((TIMEOUT-1))
+              if [ $TIMEOUT -le 0 ]; then
+                echo "Erro: O banco de dados não ficou pronto a tempo."
+                exit 1
+              fi
+            done
+            echo "Banco de dados pronto!"
+
             docker compose -p ${SERVICE_NAME} exec -T app php artisan migrate --force
 
       - name: Post Preview URL to PR
