@@ -2,6 +2,10 @@ FROM php:8.4-fpm AS builder
 
 WORKDIR /var/www
 
+ARG COMPOSER_CACHE_KEY
+ARG NPM_CACHE_KEY
+ENV COMPOSER_CACHE_DIR=/tmp/composer-cache
+
 RUN apt-get update && apt-get install -y \
     nodejs \
     npm \
@@ -11,14 +15,17 @@ RUN apt-get update && apt-get install -y \
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
 COPY composer.json composer.lock ./
-RUN composer install --no-interaction --no-dev --prefer-dist --optimize-autoloader --no-scripts
+RUN --mount=type=cache,target=/tmp/composer-cache \
+    composer install --no-interaction --no-dev --prefer-dist --optimize-autoloader --no-scripts
 
 COPY package.json package-lock.json ./
-RUN npm ci
+RUN --mount=type=cache,target=/root/.npm \
+    npm ci --prefer-offline --no-audit --no-fund
 
 COPY . .
 
-RUN npm run build
+RUN --mount=type=cache,target=/root/.npm \
+    npm run build
 
 RUN npm prune --production
 
@@ -60,8 +67,8 @@ RUN apk add --no-cache --update git
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
 COPY composer.json composer.lock ./
-
-RUN composer install --no-interaction --prefer-dist --optimize-autoloader
+RUN --mount=type=cache,target=/tmp/composer-cache \
+    composer install --no-interaction --prefer-dist --optimize-autoloader
 
 COPY phpunit.xml ./
 COPY tests ./tests
