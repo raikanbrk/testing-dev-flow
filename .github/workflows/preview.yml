@@ -90,6 +90,24 @@ jobs:
               if [ -f ".env.example" ] && [ ! -f ".env" ]; then
                 cp .env.example .env
               fi
+
+              sed -i 's/^APP_ENV=.*/APP_ENV=preview/' .env || echo "APP_ENV=preview" >> .env
+              sed -i "s#^APP_URL=.*#APP_URL=https://${HOSTNAME}#" .env || echo "APP_URL=https://${HOSTNAME}" >> .env
+
+              grep -q '^DB_CONNECTION=' .env || echo "DB_CONNECTION=mysql" >> .env
+              sed -i 's/^DB_CONNECTION=.*/DB_CONNECTION=mysql/' .env
+              sed -i 's/^# DB_HOST=.*/DB_HOST=mysql/' .env || echo "DB_HOST=mysql" >> .env
+              sed -i 's/^# DB_PORT=.*/DB_PORT=3306/' .env || echo "DB_PORT=3306" >> .env
+              sed -i 's/^# DB_DATABASE=.*/DB_DATABASE=testing/' .env || echo "DB_DATABASE=testing" >> .env
+              sed -i 's/^# DB_USERNAME=.*/DB_USERNAME=preview_user/' .env || echo "DB_USERNAME=preview_user" >> .env
+              sed -i 's/^# DB_PASSWORD=.*/DB_PASSWORD=password/' .env || echo "DB_PASSWORD=password" >> .env
+
+              sed -i 's/^QUEUE_CONNECTION=.*/QUEUE_CONNECTION=database/' .env || echo "QUEUE_CONNECTION=database" >> .env
+              sed -i 's/^MAIL_MAILER=.*/MAIL_MAILER=log/' .env || echo "MAIL_MAILER=log" >> .env
+
+              KEY=$(openssl rand -base64 32 | sed 's/^/base64:/')
+              sed -i "s#^APP_KEY=.*#APP_KEY=${KEY}#" .env
+
               ln -s ~/.htpasswd ./docker/nginx/.htpasswd || true
             else
               cd ${PROJECT_DIR}
@@ -98,32 +116,6 @@ jobs:
 
             git fetch origin
             git checkout ${{ github.event.pull_request.head.sha }}
-
-            sed -i 's/^APP_ENV=.*/APP_ENV=preview/' .env || echo "APP_ENV=preview" >> .env
-            sed -i "s#^APP_URL=.*#APP_URL=https://${HOSTNAME}#" .env || echo "APP_URL=https://${HOSTNAME}" >> .env
-
-            grep -q '^DB_CONNECTION=' .env || echo "DB_CONNECTION=mysql" >> .env
-            sed -i 's/^DB_CONNECTION=.*/DB_CONNECTION=mysql/' .env
-            sed -i 's/^DB_HOST=.*/DB_HOST=mysql/' .env || echo "DB_HOST=mysql" >> .env
-            sed -i 's/^DB_PORT=.*/DB_PORT=3306/' .env || echo "DB_PORT=3306" >> .env
-            sed -i 's/^DB_DATABASE=.*/DB_DATABASE=testing/' .env || echo "DB_DATABASE=testing" >> .env
-            sed -i 's/^DB_USERNAME=.*/DB_USERNAME=preview_user/' .env || echo "DB_USERNAME=preview_user" >> .env
-            sed -i 's/^DB_PASSWORD=.*/DB_PASSWORD=password/' .env || echo "DB_PASSWORD=password" >> .env
-
-            sed -i 's/^QUEUE_CONNECTION=.*/QUEUE_CONNECTION=database/' .env || echo "QUEUE_CONNECTION=database" >> .env
-            sed -i 's/^MAIL_MAILER=.*/MAIL_MAILER=log/' .env || echo "MAIL_MAILER=log" >> .env
-
-            if ! grep -q '^APP_KEY=' .env || [ -z "$(grep '^APP_KEY=' .env | cut -d= -f2-)" ]; then
-              KEY=$(php -r "echo 'base64:'.base64_encode(random_bytes(32));")
-              if [ -z "$KEY" ]; then
-                KEY=$(openssl rand -base64 32 | sed 's/^/base64:/')
-              fi
-              if grep -q '^APP_KEY=' .env; then
-                sed -i "s#^APP_KEY=.*#APP_KEY=${KEY}#" .env
-              else
-                echo "APP_KEY=${KEY}" >> .env
-              fi
-            fi
 
             docker compose -f docker-compose.preview.yml -p ${SERVICE_NAME} up -d --pull=always
 
