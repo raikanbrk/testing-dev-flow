@@ -4,24 +4,53 @@ on:
   pull_request:
     types: [opened, synchronize, reopened]
 
+permissions:
+  contents: read
+
 jobs:
   laravel-tests:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Build the Docker image for testing
-        run: docker build -t meu-app/laravel:test .
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build test image with cache
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          tags: meu-app/laravel:test
+          load: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
       - name: Run Tests with Docker Compose
         run: |
+          set -e
+          trap 'echo "--- docker compose ps ---"; docker compose -f docker-compose.ci.yml -p ci ps || true; echo "--- docker compose logs (last 200 lines) ---"; docker compose -f docker-compose.ci.yml -p ci logs --no-color --tail=200 || true' ERR
+
           DOCKER_COMPOSE="docker compose -f docker-compose.ci.yml --env-file .env.ci"
           $DOCKER_COMPOSE up -d
 
-          sleep 5
+          echo "Aguardando MySQL..."
+          TIMEOUT=120
+          until $DOCKER_COMPOSE exec -T mysql mysqladmin ping --silent >/dev/null 2>&1; do
+            sleep 2
+            TIMEOUT=$((TIMEOUT-2))
+            if [ $TIMEOUT -le 0 ]; then
+              echo "MySQL não ficou pronto a tempo."
+              $DOCKER_COMPOSE ps
+              $DOCKER_COMPOSE logs mysql || true
+              exit 1
+            fi
+          done
+          echo "MySQL OK."
 
           $DOCKER_COMPOSE exec -T app cp .env.ci .env
           $DOCKER_COMPOSE exec -T app php artisan key:generate
           $DOCKER_COMPOSE exec -T app php artisan migrate --force --seed
-          $DOCKER_COMPOSE exec -T app ./vendor/bin/phpunit
+          $DOCKER_COMPOSE exec -T app php artisan test
+
+          $DOCKER_COMPOSE down -v
