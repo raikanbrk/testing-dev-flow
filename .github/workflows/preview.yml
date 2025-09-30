@@ -61,6 +61,8 @@ jobs:
     needs: build_and_push
     runs-on: ubuntu-latest
     if: github.event.pull_request.head.repo.full_name == github.repository && github.event.action != 'closed'
+    environment:
+      name: Preview
     permissions:
       pull-requests: write
     steps:
@@ -87,23 +89,12 @@ jobs:
               git clone git@github.com:${{ github.repository }}.git ${PROJECT_DIR}
               cd ${PROJECT_DIR}
 
-              if [ -f ".env.example" ] && [ ! -f ".env" ]; then
-                cp .env.example .env
-              fi
+              git fetch origin
+              git checkout ${{ github.event.pull_request.head.sha }}
 
-              sed -i 's/^APP_ENV=.*/APP_ENV=preview/' .env || echo "APP_ENV=preview" >> .env
+              cp .env.preview .env
+
               sed -i "s#^APP_URL=.*#APP_URL=https://${HOSTNAME}#" .env || echo "APP_URL=https://${HOSTNAME}" >> .env
-
-              grep -q '^DB_CONNECTION=' .env || echo "DB_CONNECTION=mysql" >> .env
-              sed -i 's/^DB_CONNECTION=.*/DB_CONNECTION=mysql/' .env
-              sed -i 's/^# DB_HOST=.*/DB_HOST=mysql/' .env || echo "DB_HOST=mysql" >> .env
-              sed -i 's/^# DB_PORT=.*/DB_PORT=3306/' .env || echo "DB_PORT=3306" >> .env
-              sed -i 's/^# DB_DATABASE=.*/DB_DATABASE=testing/' .env || echo "DB_DATABASE=testing" >> .env
-              sed -i 's/^# DB_USERNAME=.*/DB_USERNAME=preview_user/' .env || echo "DB_USERNAME=preview_user" >> .env
-              sed -i 's/^# DB_PASSWORD=.*/DB_PASSWORD=password/' .env || echo "DB_PASSWORD=password" >> .env
-
-              sed -i 's/^QUEUE_CONNECTION=.*/QUEUE_CONNECTION=database/' .env || echo "QUEUE_CONNECTION=database" >> .env
-              sed -i 's/^MAIL_MAILER=.*/MAIL_MAILER=log/' .env || echo "MAIL_MAILER=log" >> .env
 
               KEY=$(openssl rand -base64 32 | sed 's/^/base64:/')
               sed -i "s#^APP_KEY=.*#APP_KEY=${KEY}#" .env
@@ -185,6 +176,8 @@ jobs:
   destroy_preview:
     if: github.event.action == 'closed' && github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
+    environment:
+      name: Preview
     permissions:
       contents: read
     steps:
