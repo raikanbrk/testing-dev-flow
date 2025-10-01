@@ -5,8 +5,8 @@ set -euo pipefail
 : "${COMMIT_SHA:?A variável COMMIT_SHA não foi definida.}"
 : "${PROJECT_DIR:?A variável PROJECT_DIR não foi definida.}"
 
-export HOSTNAME="testing-dev-flow-production.carlosalexandre.com.br"
-export ROUTER_NAME="testing-dev-flow-production"
+export HOSTNAME="testing-dev-flow.carlosalexandre.com.br"
+export ROUTER_NAME="testing-dev-flow"
 export COMPOSE_FILE="docker-compose.production.yml"
 
 trap 'echo "--- [ERRO] O deploy falhou. Coletando informações para debug... ---"; docker compose -f ${COMPOSE_FILE} -p ${SERVICE_NAME} ps || true; echo "--- Logs (últimas 200 linhas) ---"; docker compose -f ${COMPOSE_FILE} -p ${SERVICE_NAME} logs --no-color --tail=200 || true' ERR
