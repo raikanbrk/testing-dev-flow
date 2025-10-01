@@ -5,6 +5,7 @@ set -euo pipefail
 : "${IMAGE_TAG:?A variável IMAGE_TAG não foi definida.}"
 : "${REPO_FULL_NAME:?A variável REPO_FULL_NAME não foi definida.}"
 : "${COMMIT_SHA:?A variável COMMIT_SHA não foi definida.}"
+: "${PROJECT_DIR:?A variável PROJECT_DIR não foi definida.}"
 
 export HOSTNAME="testing-dev-flow-pr-${PR_NUMBER}.preview.carlosalexandre.com.br"
 export ROUTER_NAME="testing-dev-flow-pr-${PR_NUMBER}"

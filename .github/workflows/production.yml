@@ -12,16 +12,13 @@ jobs:
   build_and_push:
     runs-on: ubuntu-latest
     outputs:
-      image_tag: ${{ steps.vars.outputs.sha_short }}
+      image_tag: ${{ steps.meta.outputs.version }}
     steps:
-      - name: Checkout repository at the correct SHA
+      - name: Checkout repository
         uses: actions/checkout@v4
-        with:
-          ref: ${{ github.sha }}
 
-      - name: Set output slug
-        id: vars
-        run: echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
       - name: Login to Docker Hub
         uses: docker/login-action@v3
@@ -29,11 +26,25 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
+      - name: Extract Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: devc4rlos/testing-dev-flow
+          tags: |
+            type=sha,prefix=,format=short
+            type=raw,value=latest,enable={{is_default_branch}}
+
       - name: Build and push Docker image
-        run: |
-          IMAGE_TAG=${{ steps.vars.outputs.sha_short }}
-          docker build --target php -t devc4rlos/testing-dev-flow:${IMAGE_TAG} .
-          docker push devc4rlos/testing-dev-flow:${IMAGE_TAG}
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          target: php
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
   deploy_production:
     needs: build_and_push
@@ -43,33 +54,16 @@ jobs:
       url: https://testing-dev-flow.carlosalexandre.com.br/
     steps:
       - name: Deploy to VPS
-        uses: appleboy/ssh-action@master
+        uses: appleboy/ssh-action@v1.2.2
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
           script: |
-            set -e
-            IMAGE_TAG=${{ needs.build_and_push.outputs.image_tag }}
-            PROJECT_DIR="/var/www/testing-dev-flow"
-            GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=no"
-
-            export HOSTNAME="testing-dev-flow.carlosalexandre.com.br"
-            export ROUTER_NAME="testing-dev-flow"
+            export IMAGE_TAG="${{ needs.build_and_push.outputs.image_tag }}"
+            export PROJECT_DIR="/var/www/testing-dev-flow"
             export SERVICE_NAME="testing-dev-flow"
-            export IMAGE_TAG
+            export REPO_FULL_NAME="${{ github.repository }}"
+            export COMMIT_SHA="${{ github.sha }}"
 
-            if [ ! -d "$PROJECT_DIR/.git" ]; then
-              git clone git@github.com:${{ github.repository }}.git ${PROJECT_DIR}
-              cd ${PROJECT_DIR}
-            else
-              cd ${PROJECT_DIR}
-              docker compose -p ${SERVICE_NAME} down -v
-            fi
-
-            git fetch origin
-            git checkout ${{ github.sha }}
-
-            docker compose -f docker-compose.production.yml -p ${SERVICE_NAME} up -d
-            sleep 5
-            docker compose -p ${SERVICE_NAME} exec -T app php artisan migrate --force
+            bash $PROJECT_DIR/docker/production/deploy-production.sh
