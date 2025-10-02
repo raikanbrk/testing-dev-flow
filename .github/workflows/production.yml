@@ -66,7 +66,9 @@ jobs:
             export REPO_FULL_NAME="${{ github.repository }}"
             export COMMIT_SHA="${{ github.sha }}"
 
+            cd $PROJECT_DIR
+
             git fetch origin
             git checkout "${COMMIT_SHA}"
 
-            bash $PROJECT_DIR/docker/production/deploy-production.sh
+            bash ./docker/production/deploy-production.sh
