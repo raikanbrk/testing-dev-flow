@@ -32,7 +32,7 @@ git checkout "${COMMIT_SHA}"
 docker compose -f "${COMPOSE_FILE}" -p "${SERVICE_NAME}" pull app
 
 echo "⬆️  Atualizando os serviços com Docker Compose..."
-docker compose -f docker-compose.preview.yml -p "${SERVICE_NAME}" up -d --pull=always --remove-orphans
+docker compose -f docker-compose.production.yml -p "${SERVICE_NAME}" up -d --pull=always --remove-orphans
 
 echo "⏳ Aguardando a aplicação (app) ficar saudável (healthy)..."
 APP_TIMEOUT=120
