@@ -3,6 +3,7 @@ set -euo pipefail
 
 : "${IMAGE_TAG:?A variável IMAGE_TAG não foi definida.}"
 : "${COMMIT_SHA:?A variável COMMIT_SHA não foi definida.}"
+: "${PROJECT_NAME:?A variável PROJECT_NAME não foi definida.}"
 : "${PROJECT_DIR:?A variável PROJECT_DIR não foi definida.}"
 : "${REPO_FULL_NAME:?A variável REPO_FULL_NAME não foi definida.}"
 

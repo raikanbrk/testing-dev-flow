@@ -70,6 +70,7 @@ jobs:
           script: |
             export IMAGE_TAG="${{ needs.build_and_push.outputs.image_tag }}"
             export PROJECT_DIR="${{ env.PROJECT_DIR }}"
+            export PROJECT_NAME="${{ env.PROJECT_NAME }}"
             export REPO_FULL_NAME="${{ github.repository }}"
             export COMMIT_SHA="${{ github.sha }}"
 
