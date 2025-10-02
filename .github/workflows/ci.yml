@@ -37,7 +37,7 @@ jobs:
           echo "Aguardando MySQL..."
           TIMEOUT=120
           until $DOCKER_COMPOSE exec -T mysql mysqladmin ping --silent >/dev/null 2>&1; do
-            sleep 2
+            sleep 3
             TIMEOUT=$((TIMEOUT-2))
             if [ $TIMEOUT -le 0 ]; then
               echo "MySQL não ficou pronto a tempo."

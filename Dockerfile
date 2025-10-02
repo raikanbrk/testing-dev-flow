@@ -42,6 +42,7 @@ RUN apk add --no-cache --update \
     libzip \
     oniguruma \
     fcgi \
+    rsync \
     && apk add --no-cache --virtual .build-deps \
     $PHPIZE_DEPS \
     freetype-dev \
@@ -54,10 +55,19 @@ RUN apk add --no-cache --update \
 
 COPY --from=builder /var/www /var/www
 
+RUN rm -rf public
+
+COPY --from=builder /var/www/public /var/www/public_assets
+
+COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+
 RUN chown -R www-data:www-data storage bootstrap/cache \
     && chmod -R 775 storage bootstrap/cache
 
 EXPOSE 9000
+
+ENTRYPOINT ["docker-entrypoint.sh"]
 CMD ["php-fpm"]
 
 FROM php AS development

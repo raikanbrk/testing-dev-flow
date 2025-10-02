@@ -96,11 +96,12 @@ jobs:
               FIRST_TIME=true
               echo "Clonando repositório pela primeira vez em ${PROJECT_DIR}..."
               git clone "git@github.com:${REPO_FULL_NAME}.git" "${PROJECT_DIR}"
-              cd "${PROJECT_DIR}"
-
-              git fetch origin
-              git checkout "${COMMIT_SHA}"
             fi
+            
+            cd "${PROJECT_DIR}"
+
+            git fetch origin
+            git checkout "${COMMIT_SHA}"
 
             bash $PROJECT_DIR/docker/preview/deploy-preview.sh
 

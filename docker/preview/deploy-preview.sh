@@ -24,15 +24,14 @@ if $FIRST_TIME; then
   sed -i "s#^APP_KEY=.*#APP_KEY=${KEY}#" .env
 
   ln -s ~/.htpasswd ./docker/nginx/.htpasswd || true
-else
-  echo "Repositório já existe. Derrubando ambiente antigo..."
-  cd "${PROJECT_DIR}"
-  docker compose -f docker-compose.preview.yml -p "${SERVICE_NAME}" down -v --remove-orphans
 fi
 
 echo "Atualizando repositório para o commit ${COMMIT_SHA}..."
 git fetch origin
 git checkout "${COMMIT_SHA}"
+
+cd "${PROJECT_DIR}"
+docker compose -f docker-compose.preview.yml -p "${SERVICE_NAME}" pull app
 
 echo "Subindo os contêineres com a imagem ${IMAGE_TAG}..."
 docker compose -f docker-compose.preview.yml -p "${SERVICE_NAME}" up -d --pull=always
