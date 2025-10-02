@@ -2,8 +2,10 @@
 set -euo pipefail
 
 : "${PR_NUMBER:?A variável PR_NUMBER não foi definida.}"
+: "${PROJECT_DIR:?A variável PROJECT_DIR não foi definida.}"
+: "${PROJECT_NAME:?A variável PROJECT_NAME não foi definida.}"
 
-SERVICE_NAME="testing-dev-flow-pr-${PR_NUMBER}"
+SERVICE_NAME="${PROJECT_NAME}-pr-${PR_NUMBER}"
 
 echo "Iniciando destruição do ambiente da PR #${PR_NUMBER}..."
 

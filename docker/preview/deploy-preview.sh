@@ -3,13 +3,13 @@ set -euo pipefail
 
 : "${PR_NUMBER:?A variável PR_NUMBER não foi definida.}"
 : "${IMAGE_TAG:?A variável IMAGE_TAG não foi definida.}"
-: "${REPO_FULL_NAME:?A variável REPO_FULL_NAME não foi definida.}"
 : "${COMMIT_SHA:?A variável COMMIT_SHA não foi definida.}"
 : "${PROJECT_DIR:?A variável PROJECT_DIR não foi definida.}"
+: "${PROJECT_NAME:?A variável PROJECT_NAME não foi definida.}"
 
-export HOSTNAME="testing-dev-flow-pr-${PR_NUMBER}.preview.carlosalexandre.com.br"
-export ROUTER_NAME="testing-dev-flow-pr-${PR_NUMBER}"
-export SERVICE_NAME="testing-dev-flow-pr-${PR_NUMBER}"
+export HOSTNAME="${PROJECT_NAME}-pr-${PR_NUMBER}.preview.carlosalexandre.com.br"
+export ROUTER_NAME="${PROJECT_NAME}-pr-${PR_NUMBER}"
+export SERVICE_NAME="${PROJECT_NAME}-pr-${PR_NUMBER}"
 export IMAGE_TAG
 
 trap 'echo "--- docker compose ps ---"; docker compose -f docker-compose.preview.yml -p ${SERVICE_NAME} ps || true; echo "--- docker compose logs (last 200 lines) ---"; docker compose -f docker-compose.preview.yml -p ${SERVICE_NAME} logs --no-color --tail=200 || true' ERR

@@ -4,6 +4,9 @@ on:
   pull_request:
     types: [opened, synchronize, reopened, closed]
 
+env:
+  PR_NUMBER: ${{ github.event.pull_request.number }}
+
 permissions:
   contents: read
 
@@ -18,6 +21,9 @@ jobs:
     outputs:
       image_tag: ${{ steps.meta.outputs.version }}
     steps:
+      - name: Set dynamic variables
+        run: echo "PROJECT_NAME=${GITHUB_REPOSITORY#*/}" >> $GITHUB_ENV
+
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
@@ -37,9 +43,9 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: devc4rlos/testing-dev-flow
+          images: ${{ github.repository }}
           tags: |
-            type=raw,value=pr-${{ github.event.pull_request.number }}
+            type=raw,value=pr-${{ env.PR_NUMBER }}
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
@@ -49,7 +55,7 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: |
-            br.com.carlosalexandre.preview.pr=${{ github.event.pull_request.number }}
+            br.com.carlosalexandre.preview.pr=${{ env.PR_NUMBER }}
             br.com.carlosalexandre.preview.general=true
           build-args: |
             COMPOSER_CACHE_KEY=${{ hashFiles('composer.lock') }}
@@ -66,6 +72,11 @@ jobs:
     permissions:
       pull-requests: write
     steps:
+      - name: Set dynamic variables
+        run: |
+          echo "PROJECT_NAME=${GITHUB_REPOSITORY#*/}" >> $GITHUB_ENV
+          echo "PROJECT_DIR=/var/www/previews-prs/${GITHUB_REPOSITORY#*/}/pr-${{ env.PR_NUMBER }}" >> $GITHUB_ENV
+
       - name: Deploy to VPS
         uses: appleboy/ssh-action@master
         with:
@@ -73,11 +84,12 @@ jobs:
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
           script: |
-            export PR_NUMBER=${{ github.event.pull_request.number }}
+            export PR_NUMBER=${{ env.PR_NUMBER }}
+            export PROJECT_NAME=${{ env.PROJECT_NAME }}
             export IMAGE_TAG=${{ needs.build_and_push.outputs.image_tag }}
             export REPO_FULL_NAME=${{ github.repository }}
             export COMMIT_SHA=${{ github.event.pull_request.head.sha }}
-            export PROJECT_DIR="/var/www/previews-prs/testing-dev-flow/pr-${PR_NUMBER}"
+            export PROJECT_DIR="${{ env.PROJECT_DIR }}"
             export FIRST_TIME=false
 
             if [ ! -d "$PROJECT_DIR" ]; then
@@ -91,37 +103,17 @@ jobs:
             fi
 
             bash $PROJECT_DIR/docker/preview/deploy-preview.sh
-        env:
-          CHECKOUT_DIR: './'
-
-      - name: Add checkout step for deploy
-        if: success()
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.pull_request.head.sha }}
-          path: ${{ env.CHECKOUT_DIR }}
 
       - name: Post Preview URL to PR
         uses: marocchino/sticky-pull-request-comment@v2
         with:
-          number: ${{ github.event.pull_request.number }}
+          number: ${{ env.PR_NUMBER }}
           header: preview-url
           message: |
             ✅ **Preview pronto!**
-            Acesse em: https://testing-dev-flow-pr-${{ github.event.pull_request.number }}.preview.carlosalexandre.com.br
+            Acesse em: https://${{ env.PROJECT_NAME }}-pr-${{ env.PR_NUMBER }}.preview.carlosalexandre.com.br
 
-            > Imagem: `devc4rlos/testing-dev-flow:${{ needs.build_and_push.outputs.image_tag }}`
-
-      - name: Post Preview URL to PR
-        uses: marocchino/sticky-pull-request-comment@v2
-        with:
-          number: ${{ github.event.pull_request.number }}
-          header: preview-url
-          message: |
-            ✅ **Preview pronto!**
-            Acesse em: https://testing-dev-flow-pr-${{ github.event.pull_request.number }}.preview.carlosalexandre.com.br
-
-            > Imagem: `devc4rlos/testing-dev-flow:${{ needs.build_and_push.outputs.image_tag }}`
+            > Imagem: `${{ github.repository }}:${{ needs.build_and_push.outputs.image_tag }}`
 
   destroy_preview:
     if: github.event.action == 'closed' && github.event.pull_request.head.repo.full_name == github.repository
@@ -131,8 +123,8 @@ jobs:
     permissions:
       contents: read
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - name: Set dynamic variables
+        run: echo "PROJECT_DIR=/var/www/previews-prs/${GITHUB_REPOSITORY#*/}/pr-${{ env.PR_NUMBER }}" >> $GITHUB_ENV
 
       - name: Destroy Environment on VPS
         uses: appleboy/ssh-action@master
@@ -141,9 +133,14 @@ jobs:
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
           script: |
-            export PR_NUMBER=${{ github.event.pull_request.number }}
-            export PROJECT_DIR="/var/www/previews-prs/testing-dev-flow/pr-${PR_NUMBER}"
-            cat $PROJECT_DIR/docker/preview/destroy-preview.sh | bash -s
+            export PR_NUMBER=${{ env.PR_NUMBER }}
+            export PROJECT_NAME=${{ env.PROJECT_NAME }}
+            export PROJECT_DIR="${{ env.PROJECT_DIR }}"
+            if [ -d "$PROJECT_DIR" ]; then
+              cat $PROJECT_DIR/docker/preview/destroy-preview.sh | bash -s
+            else
+              echo "Diretório do projeto não encontrado. Nada a fazer."
+            fi
 
       - name: Install and Login to regctl
         run: |
@@ -153,7 +150,7 @@ jobs:
 
       - name: Delete PR-prefixed tag from Docker Hub
         run: |
-          REPO="docker.io/devc4rlos/testing-dev-flow"
-          PR_TAG="pr-${{ github.event.pull_request.number }}"
+          REPO="docker.io/${{ github.repository }}"
+          PR_TAG="pr-${{ env.PR_NUMBER }}"
           echo "Removendo tag da PR: ${PR_TAG}"
           regctl tag rm "${REPO}:${PR_TAG}" || echo "Tag ${PR_TAG} não encontrada."
