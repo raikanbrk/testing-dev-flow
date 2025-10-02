@@ -29,10 +29,10 @@ echo "🔄 Atualizando o código-fonte (ex: docker-compose.yml)..."
 git fetch origin
 git checkout "${COMMIT_SHA}"
 
-docker compose -f "${COMPOSE_FILE}" -p "${SERVICE_NAME}" down -v
+docker compose -f "${COMPOSE_FILE}" -p "${SERVICE_NAME}" pull app
 
 echo "⬆️  Atualizando os serviços com Docker Compose..."
-docker compose -f "${COMPOSE_FILE}" -p "${SERVICE_NAME}" up -d --remove-orphans
+docker compose -f docker-compose.preview.yml -p "${SERVICE_NAME}" up -d --pull=always --remove-orphans
 
 echo "⏳ Aguardando a aplicação (app) ficar saudável (healthy)..."
 APP_TIMEOUT=120
@@ -52,7 +52,6 @@ docker compose -f "${COMPOSE_FILE}" -p "${SERVICE_NAME}" exec -T app php artisan
 docker compose -f "${COMPOSE_FILE}" -p "${SERVICE_NAME}" exec -T app php artisan view:cache
 docker compose -f "${COMPOSE_FILE}" -p "${SERVICE_NAME}" exec -T app php artisan migrate --force
 echo "✅ Migrações e otimizações concluídas."
-
 
 echo "📡 Verificando se a aplicação está respondendo via HTTP..."
 READY_TIMEOUT=60
