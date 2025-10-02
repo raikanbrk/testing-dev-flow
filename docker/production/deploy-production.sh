@@ -4,15 +4,17 @@ set -euo pipefail
 : "${IMAGE_TAG:?A variável IMAGE_TAG não foi definida.}"
 : "${COMMIT_SHA:?A variável COMMIT_SHA não foi definida.}"
 : "${PROJECT_DIR:?A variável PROJECT_DIR não foi definida.}"
+: "${REPO_FULL_NAME:?A variável REPO_FULL_NAME não foi definida.}"
 
-export HOSTNAME="testing-dev-flow.carlosalexandre.com.br"
-export ROUTER_NAME="testing-dev-flow"
+export SERVICE_NAME=${PROJECT_NAME}
+export HOSTNAME="${PROJECT_NAME}.carlosalexandre.com.br"
+export ROUTER_NAME="${PROJECT_NAME}"
 export COMPOSE_FILE="docker-compose.production.yml"
 
 trap 'echo "--- [ERRO] O deploy falhou. Coletando informações para debug... ---"; docker compose -f ${COMPOSE_FILE} -p ${SERVICE_NAME} ps || true; echo "--- Logs (últimas 200 linhas) ---"; docker compose -f ${COMPOSE_FILE} -p ${SERVICE_NAME} logs --no-color --tail=200 || true' ERR
 
 echo "🚀 Iniciando deploy de produção para o commit ${COMMIT_SHA}..."
-echo "-> Imagem: devc4rlos/testing-dev-flow:${IMAGE_TAG}"
+echo "-> Imagem: ${REPO_FULL_NAME}:${IMAGE_TAG}"
 
 cd "${PROJECT_DIR}"
 
