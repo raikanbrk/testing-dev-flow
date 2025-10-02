@@ -124,7 +124,9 @@ jobs:
       contents: read
     steps:
       - name: Set dynamic variables
-        run: echo "PROJECT_DIR=/var/www/previews-prs/${GITHUB_REPOSITORY#*/}/pr-${{ env.PR_NUMBER }}" >> $GITHUB_ENV
+        run: |
+          echo "PROJECT_NAME=${GITHUB_REPOSITORY#*/}" >> $GITHUB_ENV
+          echo "PROJECT_DIR=/var/www/previews-prs/${GITHUB_REPOSITORY#*/}/pr-${{ env.PR_NUMBER }}" >> $GITHUB_ENV
 
       - name: Destroy Environment on VPS
         uses: appleboy/ssh-action@master
