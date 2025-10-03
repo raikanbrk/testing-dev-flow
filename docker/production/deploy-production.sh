@@ -53,29 +53,21 @@ docker compose -f "${COMPOSE_FILE}" -p "${SERVICE_NAME}" exec -T app php artisan
 docker compose -f "${COMPOSE_FILE}" -p "${SERVICE_NAME}" exec -T app php artisan migrate --force
 echo "✅ Migrações e otimizações concluídas."
 
-echo "📡 Verificando se a aplicação está respondendo via HTTP..."
+echo "Verificando readiness HTTP de https://${HOSTNAME}/health ..."
 READY_TIMEOUT=60
 while true; do
-  HTTP_CODE=$(curl --insecure --silent --output /dev/null --write-out "%{http_code}" \
-                   --max-time 5 \
-                   --resolve "${HOSTNAME}:443:127.0.0.1" \
-                   "https://${HOSTNAME}/" || true)
-
-  case "$HTTP_CODE" in
-    200|301|302)
-      echo "✅ Aplicação respondendo com sucesso (código ${HTTP_CODE}) em https://${HOSTNAME} (via localhost)."
-      break
-      ;;
-    *)
-      echo "Aguardando resposta HTTP... (último código: ${HTTP_CODE})"
-      sleep 3
-      READY_TIMEOUT=$((READY_TIMEOUT-3))
-      if [ $READY_TIMEOUT -le 0 ]; then
-        echo "❌ Erro: Verificação HTTP falhou. Último código recebido: ${HTTP_CODE}" >&2
-        exit 1
-      fi
-      ;;
-  esac
+  HTTP_CODE=$(curl -k -sS -o /dev/null -w "%{http_code}" --max-time 5 "https://${HOSTNAME}/health")
+  if [ "$HTTP_CODE" -eq 200 ]; then
+    echo "✅ Readiness OK (200) em ${HOSTNAME}."
+    break
+  else
+    sleep 2
+    READY_TIMEOUT=$((READY_TIMEOUT-2))
+    if [ $READY_TIMEOUT -le 0 ]; then
+      echo "Erro: readiness HTTP não atingido. Último código: ${HTTP_CODE}" >&2
+      exit 1
+    fi
+  fi
 done
 
 echo "🧹 Limpando imagens Docker antigas..."

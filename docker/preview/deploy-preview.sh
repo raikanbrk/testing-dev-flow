@@ -68,24 +68,21 @@ if ! docker compose -f docker-compose.preview.yml -p "${SERVICE_NAME}" exec -T a
 fi
 echo "✅ Migrações concluídas."
 
-echo "Verificando readiness HTTP de https://${HOSTNAME} ..."
+echo "Verificando readiness HTTP de https://${HOSTNAME}/health ..."
 READY_TIMEOUT=120
 while true; do
-  HTTP_CODE=$(curl -k -sS -o /dev/null -w "%{http_code}" --max-time 5 "https://${HOSTNAME}/")
-  case "$HTTP_CODE" in
-    200|301|302|401)
-      echo "✅ Readiness OK (${HTTP_CODE}) em ${HOSTNAME}."
-      break
-      ;;
-    *)
-      sleep 2
-      READY_TIMEOUT=$((READY_TIMEOUT-2))
-      if [ $READY_TIMEOUT -le 0 ]; then
-        echo "Erro: readiness HTTP não atingido. Último código: ${HTTP_CODE}" >&2
-        exit 1
-      fi
-      ;;
-  esac
+  HTTP_CODE=$(curl -k -sS -o /dev/null -w "%{http_code}" --max-time 5 "https://${HOSTNAME}/health")
+  if [ "$HTTP_CODE" -eq 200 ]; then
+    echo "✅ Readiness OK (200) em ${HOSTNAME}."
+    break
+  else
+    sleep 2
+    READY_TIMEOUT=$((READY_TIMEOUT-2))
+    if [ $READY_TIMEOUT -le 0 ]; then
+      echo "Erro: readiness HTTP não atingido. Último código: ${HTTP_CODE}" >&2
+      exit 1
+    fi
+  fi
 done
 
 echo "🎉 Deploy da PR #${PR_NUMBER} concluído com sucesso!"
