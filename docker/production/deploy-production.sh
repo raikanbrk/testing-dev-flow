@@ -34,6 +34,8 @@ docker compose -f "${COMPOSE_FILE}" -p "${SERVICE_NAME}" pull app
 echo "⬆️  Atualizando os serviços com Docker Compose..."
 docker compose -f docker-compose.production.yml -p "${SERVICE_NAME}" up -d --pull=always --remove-orphans
 
+docker compose -f docker-compose.production.yml -p "${SERVICE_NAME}" exec nginx nginx -s reload
+
 echo "⏳ Aguardando a aplicação (app) ficar saudável (healthy)..."
 APP_TIMEOUT=120
 until [ "$(docker inspect --format='{{json .State.Health.Status}}' "$(docker compose -f ${COMPOSE_FILE} -p ${SERVICE_NAME} ps -q app)" 2>/dev/null | tr -d '"')" = "healthy" ]; do
