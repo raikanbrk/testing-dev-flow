@@ -34,7 +34,7 @@ docker compose -f "${COMPOSE_FILE}" -p "${SERVICE_NAME}" pull app
 echo "⬆️  Atualizando os serviços com Docker Compose..."
 docker compose -f docker-compose.production.yml -p "${SERVICE_NAME}" up -d --pull=always --remove-orphans
 
-docker compose -f docker-compose.production.yml -p "${SERVICE_NAME}" up -d --no-deps nginx
+docker compose -f docker-compose.production.yml -p "${SERVICE_NAME}" up -d --no-deps nginx --force-recreate
 
 echo "⏳ Aguardando a aplicação (app) ficar saudável (healthy)..."
 APP_TIMEOUT=120

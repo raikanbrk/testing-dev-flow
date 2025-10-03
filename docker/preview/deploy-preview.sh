@@ -36,6 +36,8 @@ docker compose -f docker-compose.preview.yml -p "${SERVICE_NAME}" pull app
 echo "Subindo os contêineres com a imagem ${IMAGE_TAG}..."
 docker compose -f docker-compose.preview.yml -p "${SERVICE_NAME}" up -d --pull=always
 
+docker compose -f docker-compose.preview.yml -p "${SERVICE_NAME}" up -d --no-deps nginx --force-recreate
+
 echo "Aguardando o banco de dados ficar pronto..."
 TIMEOUT=60
 while ! docker compose -f docker-compose.preview.yml -p "${SERVICE_NAME}" exec -T mysql mysqladmin ping --silent; do
